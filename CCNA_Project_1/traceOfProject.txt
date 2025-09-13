@@ -1,0 +1,269 @@
+step1 : taking isr router 2911
+step2 : taking a multilayer switch 3650
+step3 : taking 3 layer 2 switch-2960 for 3 departments
+
+# router basic config:
+no
+enable
+configure terminal
+int gig0/0
+no shutdown
+exit
+
+--------------------------------------------------------------------------------------
+
+# router sub interfacing for inter VLAN configuration:(can do 4500 in networks)
+int gig0/0.1
+no shutdown
+encapsulation dot1q 10 (for HR) 
+ip address 172.31.10.1 255.255.255.0 (HR Gateway)
+exit
+
+int gig0/0.2
+no shutdown
+encapsulation dot1q 20 (for IT)
+ip address 172.31.20.1 255.255.255.0 (IT Gateway)
+exit
+
+int gig0/0.3
+no shutdown
+encapsulation dot1q 30 (for Finance)
+ip address 172.31.30.1 255.255.255.0 (Finance Gateway)
+exit
+
+---------------------------------------------------------------------------------------
+
+# Turning trunk port in Multilayer Switch for router connection
+en
+configure terminal
+int gig1/0/1
+switchport mode trunk
+switchport trunk allowed vlan 10,20,30
+
+--------------------------------------------------------------------------------------
+
+# VLAN configuration in multilayer switch:
+vlan 10 
+name HR 
+exit 
+int gig1/0/2 
+switchport mode trunk
+exit
+
+vlan 20 
+name IT 
+exit 
+int gig1/0/3
+switchport mode trunk
+exit
+
+vlan 30
+name Finance 
+exit 
+int gig1/0/4 
+switchport mode trunk
+exit
+
+------------------------------------------------------------------------------------------
+
+# Turning trunk mode on in all switch connected to multilayer switch
+en
+configure terminal
+int gig0/1
+switchport mode trunk
+
+Int gig0/2
+switchport mode trunk (back up cable)
+
+--------------------------------------------------------------------------------------
+
+# Switch configuring for pc to switch connection:
+vlan 10
+name HR
+exit
+int range fa0/1-24
+switchport mode access
+switchport access vlan 10
+exit
+
+vlan 20
+name IT
+exit
+int range fa0/1-24
+switchport mode access
+switchport access vlan 20
+exit
+
+vlan 30
+name Finance
+exit
+int range fa0/1-24
+switchport mode access
+switchport access vlan 30
+exit
+
+-----------------------------------------------------------------------------
+
+# Configured static IP in every devices for security
+HR:
+172.31.10.2
+172.31.10.3
+172.31.10.4
+
+IT:
+172.31.20.2
+172.31.20.3
+172.31.20.4
+
+Finance:
+172.31.30.2
+172.31.30.3
+172.31.30.4
+
+--------------------------------------------------------------------------------------
+
+# DHCP configuration:
+HR:
+ip dhcp pool vlan10
+network 172.31.10.0 255.255.255.0
+default-router 172.31.10.1
+dns-server 8.8.8.8
+
+IT:
+ip dhcp pool vlan20
+network 172.31.20.0 255.255.255.0
+default-router 172.31.20.1
+dns-server 8.8.8.8
+
+Finance:
+ip dhcp pool vlan30
+network 172.31.30.0 255.255.255.0
+default-router 172.31.30.1
+dns-server 8.8.8.8
+
+Excluding reserved ip from dhcp:
+
+ip dhcp excluded-address 172.31.10.1 172.31.10.10
+ip dhcp excluded-address 172.31.20.1 172.31.20.10
+ip dhcp excluded-address 172.31.30.1 172.31.30.10
+
+--------------------------------------------------------------------------------------
+
+# Enabling telnet password:
+
+For physical access:
+line console 0
+password 1234
+login
+exit
+
+For remote access://lagbe na, ssh use korsi
+line vty 0
+password 1234
+login
+exit
+
+enabling password:
+enable secret 1234
+
+All password encrypting:
+service password-encryption
+
+--------------------------------------------------------------------------------------
+
+# NTP-server:
+1. putting a static ip in the ntp server
+2. Switch configuration:
+Switch(config)#interface gig1/0/5
+Switch(config-if)#switchport mode access
+Switch(config-if)#switchport access vlan 20
+3. Configuring router to connect to ntp server:
+en
+configure terminal
+ntp server 172.31.20.10
+ping 172.31.20.10 (if successful then next command)
+show clock
+
+# HR-server:
+1. putting a static ip in the HR server
+2. Switch configuration:
+Switch(config)#interface gig1/0/6
+Switch(config-if)#switchport mode access
+Switch(config-if)#switchport access vlan 10
+
+# IT-server:
+1. putting a static ip in the IT server
+2. Switch configuration:
+Switch(config)#interface gig1/0/7
+Switch(config-if)#switchport mode access
+Switch(config-if)#switchport access vlan 20
+
+# Finance-server:
+1. putting a static ip in the Finance server
+2. Switch configuration:
+Switch(config)#interface gig1/0/8
+Switch(config-if)#switchport mode access
+Switch(config-if)#switchport access vlan 30
+
+-----------------------------------------------------------------------------------------------
+
+# ACL-configuration to limit access to servers:
+HR:
+access-list 100 permit ip 172.31.10.0 0.0.0.255 host 172.31.10.10
+access-list 100 deny ip any host 172.31.10.10
+access-list 100 permit ip any any
+
+int gig0/0.1
+ip access-group 100 out
+
+IT:
+access-list 101 permit ip 172.31.20.0 0.0.0.255 host 172.31.20.9
+access-list 101 deny ip any host 172.31.20.9
+access-list 101 permit ip any any
+
+int gig0/0.2
+ip access-group 101 out
+
+Finance:
+access-list 102 permit ip 172.31.30.0 0.0.0.255 host 172.31.30.10
+access-list 102 deny ip any host 172.31.30.10
+access-list 102 permit ip any any
+
+int gig0/0.3
+ip access-group 102 out
+
+-------------------------------------------------------------------------------------------
+
+# Telnet:
+For Physical Access;
+line console 0
+password 1234
+login
+exit
+
+For Remote Access;
+line vty 0
+password 1234
+login
+exit
+
+Enable Password;
+enable secret 1234
+
+Encrypt Password;
+service password-encryption
+
+--------------------------------------------------------------------------------------
+
+# SSH-configure:
+
+hostname creativeIt
+ip domain-name cit.com
+
+line vty 0
+login local
+transport input ssh
+exit
+username admin password 1234
+crypto key generate rsa
+1024
